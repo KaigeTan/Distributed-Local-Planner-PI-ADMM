@@ -5,12 +5,12 @@ from pypoman import plot_polygon
 from cProfile import label
 import sys
 sys.path.append('../')
-import pyobca
+import centralized
 
 
 state_record = []
 # %% obca optimization
-optimizer = pyobca.OBCAOptimizer()
+optimizer = centralized.OBCAOptimizer()
 init_state = [arr[0, :] for arr in optimizer.ref_traj]
 init_state = np.vstack(init_state)
 state_record = [init_state]
@@ -60,9 +60,9 @@ ax.set_xlim(0,90)
 
 # plot the vehicle polygons
 for i in range(len(state_record)):
-    v1_verts = pyobca.generate_vehicle_vertices(state_record[i][0, [0, 1, 3]])
+    v1_verts = centralized.generate_vehicle_vertices(state_record[i][0, [0, 1, 3]])
     plot_polygon(v1_verts, fill=False, color='b')
-    v2_verts = pyobca.generate_vehicle_vertices(state_record[i][1, [0, 1, 3]])
+    v2_verts = centralized.generate_vehicle_vertices(state_record[i][1, [0, 1, 3]])
     plot_polygon(v2_verts, fill=False, color='r')
 
 plt.show()

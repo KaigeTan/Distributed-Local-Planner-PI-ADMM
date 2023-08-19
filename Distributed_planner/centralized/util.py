@@ -1,6 +1,6 @@
 from math import *
 import casadi as ca
-from .search import VehicleConfig
+from .veh_config import VehicleConfig
 import numpy as np
 
 def normalize_angle(angle):

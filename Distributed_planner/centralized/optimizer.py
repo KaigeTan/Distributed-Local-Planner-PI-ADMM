@@ -1,4 +1,4 @@
-from .search import VehicleConfig
+from .veh_config import VehicleConfig
 import casadi as ca
 import numpy as np
 from math import *
