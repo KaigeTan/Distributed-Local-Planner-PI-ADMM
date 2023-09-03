@@ -47,23 +47,23 @@ for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: c
     init_state = np.reshape(init_state, [optimizer.num_veh*optimizer.n_states, 1]) # 10 X 1
     
 # visualization
-fig, ax = plt.subplots()
+fig, ax = plt.subplots(figsize=(20, 4))
 
 # plot the vehicle center trajectories
 v1x = [vec[0, 0] for vec in state_record]
 v1y = [vec[0, 1] for vec in state_record]
 v2x = [vec[1, 0] for vec in state_record]
 v2y = [vec[1, 1] for vec in state_record]
-ax.plot(v1x, v1y, 'go', ms=3, label='vehicle1 path')
-ax.plot(v2x, v2y, 'ro', ms=3, label='vehicle2 path')
-ax.set_xlim(0,90)
+ax.plot(v1x, v1y, 'go', ms=10, label='vehicle1 path')
+ax.plot(v2x, v2y, 'ro', ms=10, label='vehicle2 path')
+ax.set_xlim(0,100)
 
 # plot the vehicle polygons
 for i in range(len(state_record)):
     v1_verts = centralized.generate_vehicle_vertices(state_record[i][0, [0, 1, 3]])
-    plot_polygon(v1_verts, fill=False, color='b')
+    plot_polygon(v1_verts, fill=False, linewidth=5, color='b')
     v2_verts = centralized.generate_vehicle_vertices(state_record[i][1, [0, 1, 3]])
-    plot_polygon(v2_verts, fill=False, color='r')
+    plot_polygon(v2_verts, fill=False, linewidth=5, color='r')
 
 plt.show()
 

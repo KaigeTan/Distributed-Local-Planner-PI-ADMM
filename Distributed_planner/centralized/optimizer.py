@@ -73,7 +73,7 @@ class OBCAOptimizer:
     def solve(self):
         nlp_prob = {'f': self.obj, 'x': ca.vertcat(*self.variable),
                     'g': ca.vertcat(*self.constrains)}
-        solver = ca.nlpsol('solver', 'ipopt', nlp_prob)
+        solver = ca.nlpsol('solver', 'ipopt', nlp_prob) # TODO: sqp
         sol = solver(x0=ca.vertcat(*self.x0), lbx=self.lbx, ubx=self.ubx,
                      ubg=self.ubg, lbg=self.lbg)
         u_opt = sol['x']
@@ -177,7 +177,7 @@ class OBCAOptimizer:
             # TODO: think about later how to formulate with multiple vehicles
             # for 2 vehicles: 1 pair
             self.constrains += [-b[0].T@lamb[0]-b[1].T@lamb[1]] # (4a)
-            self.lbg += [0.001] # minimal distance req.
+            self.lbg += [3] # minimal distance req.
             self.ubg += [1000]
             self.constrains += [A[0].T@lamb[0]+A[1].T@lamb[1]] # (4b, 4c)
             self.lbg += [0, 0]
