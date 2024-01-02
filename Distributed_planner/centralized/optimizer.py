@@ -28,7 +28,7 @@ class OBCAOptimizer:
         self.ref_traj = cfg.ref_traj_gen()
         self.N_horz = 15 # control horizon
 
-    def initialize(self, t_step, init_state, max_x, max_y, prob, min_dis):
+    def initialize(self, t_step, init_state, max_x, max_y, prob, min_dis=1):
         self.constrains = []
         self.x0 = []
         self.lbg = []

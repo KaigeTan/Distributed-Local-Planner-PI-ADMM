@@ -11,7 +11,7 @@ import centralized
 state_record = []
 lambda_record = []
 # %% obca optimization
-if_comm_delay = 0
+if_comm_delay = 1
 min_dis = 1
 optimizer = centralized.OBCAOptimizer()
 init_state = [arr[0, :] for arr in optimizer.ref_traj]
@@ -66,19 +66,14 @@ v2y = [vec[1, 1] for vec in state_record]
 ax.plot(v1x, v1y, 'go', ms=10, label='vehicle1 path')
 ax.plot(v2x, v2y, 'ro', ms=10, label='vehicle2 path')
 ax.set_xlim(0,100)
+ax.set_ylim(-3,4)
+
 
 # plot the vehicle polygons
 # A_list = []
 # b_list = []
 for i in range(len(state_record)):
-    # if i == 8:
-    #     print('goes here')
     v1_verts = centralized.generate_vehicle_vertices(state_record[i][0, :])
-    # A_temp, b_temp = centralized.compute_square_halfspaces_ca(v1_verts)
-    # A_temp1, b_temp1 = centralized.compute_square_halfspaces_ca1(state_record[i][0, :])
-    # A_temp2, b_temp2 = compute_polytope_halfspaces(v1_verts)
-    # A_list.append([A_temp, A_temp1, A_temp2])
-    # b_list.append([b_temp, b_temp1, b_temp2])
     plot_polygon(v1_verts, fill=False, linewidth=5, color='b')
     v2_verts = centralized.generate_vehicle_vertices(state_record[i][1, :])
     plot_polygon(v2_verts, fill=False, linewidth=5, color='r')

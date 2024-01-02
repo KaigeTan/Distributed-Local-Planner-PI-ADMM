@@ -10,6 +10,8 @@ import centralized
 
 state_record = []
 # %% obca optimization
+if_comm_delay = 0
+min_dis = 1
 optimizer = centralized.OBCAOptimizer()
 init_state = [arr[0, :] for arr in optimizer.ref_traj]
 init_state = np.vstack(init_state)
@@ -18,7 +20,8 @@ init_state = np.reshape(init_state, [optimizer.num_veh*optimizer.n_states, 1]) #
 for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: check if -1
     if t_step == 19:
         print('')
-    optimizer.initialize(t_step, init_state, max_x=150, max_y=20)
+    optimizer.initialize(t_step, init_state, max_x=150, max_y=20, 
+                         prob=if_comm_delay, min_dis=min_dis)
     optimizer.build_model() # TODO: check if this step needs to be in the loop
     optimizer.generate_constrain()
     optimizer.generate_variable()
@@ -60,9 +63,9 @@ ax.set_xlim(0,100)
 
 # plot the vehicle polygons
 for i in range(len(state_record)):
-    v1_verts = centralized.generate_vehicle_vertices(state_record[i][0, [0, 1, 3]])
+    v1_verts = centralized.generate_vehicle_vertices(state_record[i][0, :])
     plot_polygon(v1_verts, fill=False, linewidth=5, color='b')
-    v2_verts = centralized.generate_vehicle_vertices(state_record[i][1, [0, 1, 3]])
+    v2_verts = centralized.generate_vehicle_vertices(state_record[i][1, :])
     plot_polygon(v2_verts, fill=False, linewidth=5, color='r')
 
 plt.show()
