@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Jan  5 10:39:13 2024
+
+@author: kaiget
+"""
+
 import numpy as np
 import math as m
 import matplotlib.pyplot as plt
@@ -26,13 +33,15 @@ for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: c
     # initialize at each time step, bar_state: lambda_bar, b_bar, s_bar; bar_ctrl: a_opt, steerate_opt
     bar_state_prev = optimizer.create_bar_state()
     bar_ctrl_prev = np.array([[0]*(optimizer.N_horz-1)*optimizer.n_controls]*optimizer.num_veh)
+    # bar_lambda = 
     i_iter = 0
     while True:
         i_iter += 1
         # optimize from vehicle side
-        bar_z = []
         bar_x = []
         bar_ctrl = []
+        bar_lambda_loc = []
+        bar_fullx = []
         for i_veh in range(optimizer.num_veh):
             optimizer.local_initialize(t_step, init_state[i_veh*optimizer.n_states: 
                                                           (i_veh+1)*optimizer.n_states], 
@@ -43,28 +52,31 @@ for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: c
             optimizer.local_generate_variable()
             r = 0.1*np.eye(optimizer.n_controls)
             q = np.eye(optimizer.n_states)
-            optimizer.local_generate_object(r, q)
+            rho = 1
+            optimizer.local_generate_object(r, q, rho)
             optimizer.local_solve()
-            bar_z += [np.array(optimizer.bar_z)]
-            bar_x += [np.array(optimizer.bar_x)]
+            
+            bar_x += [np.array(optimizer.bar_x)] # TODO: put it in bar_state
             bar_ctrl += [np.append(np.array(optimizer.a_opt).T, np.array(optimizer.steerate_opt).T)]
+            bar_lambda_loc += [np.array(optimizer.bar_lambda_loc)]
+            bar_fullx += [np.array(optimizer.bar_fullx)]
         
         # information exchange, bar_A & bar_b update
-        optimizer.bar_state_update(bar_x)
+        optimizer.bar_state_update(bar_fullx, bar_lambda_loc)
         
         # optimize from RSU side
         optimizer.edge_initialize(max_x=150, max_y=20)
         optimizer.edge_build_model()
         optimizer.edge_generate_constrain()
         optimizer.edge_generate_variable()
-        optimizer.edge_generate_object()
+        optimizer.edge_generate_object(rho)
         optimizer.edge_solve()
         # check residuals
         primal_res = np.sum(np.sqrt((bar_ctrl[0]-bar_ctrl_prev[0])*(bar_ctrl[0]-bar_ctrl_prev[0])) + \
                             np.sqrt((bar_ctrl[1]-bar_ctrl_prev[1])*(bar_ctrl[1]-bar_ctrl_prev[1])))
-        dual_res = np.sum(np.sqrt((optimizer.bar_state.lamb-bar_state_prev.lamb)*
-                                  (optimizer.bar_state.lamb-bar_state_prev.lamb)))
-        if (primal_res <= optimizer.primal_thres and dual_res <= optimizer.dual_thres) or i_iter > 5:
+        dual_res = np.sum(np.sqrt((optimizer.bar_state.lamb_bar-bar_state_prev.lamb_bar)*
+                                  (optimizer.bar_state.lamb_bar-bar_state_prev.lamb_bar)))
+        if (primal_res <= optimizer.primal_thres and dual_res <= optimizer.dual_thres) or i_iter > 5: # TODO: check terminate condition
             if i_iter > 5:
                 print('goes here')
             break # primal and dual residual within threshold, converge

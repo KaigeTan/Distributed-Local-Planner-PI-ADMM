@@ -19,6 +19,12 @@ class VehicleConfig:
         self.max_acc = 5
         self.max_v = 20
         self.max_steer_rate = 20
+        # consider the comm. delay follows normal distribution
+        # reference: 'On ramp merging strategies of connected and 
+        # automated vehicles considering communication delay' TABLE-V
+        self.avg_delay = 0.05 # consider the time delay is 50ms on average
+        self.var_delay = 0.025 # consider the time variance is 25ms on average
+        self.prob = 0.95
         
     # vehicle reference trajectory configuration, default 2 vehicles overtaking
     def ref_traj_gen(self, num_veh = 2):

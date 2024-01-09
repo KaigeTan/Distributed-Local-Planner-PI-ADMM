@@ -9,6 +9,7 @@ import centralized
 
 
 state_record = []
+lambda_record = []
 # %% obca optimization
 optimizer = centralized.OBCAOptimizer()
 init_state = [arr[0, :] for arr in optimizer.ref_traj]
@@ -36,6 +37,10 @@ for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: c
     steer_opt = np.array(np.round(optimizer.steer_opt, decimals=3))
     a_opt = np.array(np.round(optimizer.a_opt, decimals=3))
     steerate_opt = np.array(np.round(optimizer.steerate_opt, decimals=3))
+    lambda_opt = np.array(np.round(optimizer.lambda_result, decimals=3))
+    lambda_opt = np.reshape(lambda_opt, (optimizer.N_horz-1, optimizer.num_veh*optimizer.n_dual_variable)) # time-step wise
+    lambda_opt = np.reshape(lambda_opt, (optimizer.N_horz-1, optimizer.num_veh, optimizer.n_dual_variable), 'F') # N_horz X num_veh X n_dual_variable
+    
         
     # iterate to the next time step
     init_state = np.concatenate((x_opt[:, 1].reshape((-1, 1)), 
@@ -44,6 +49,7 @@ for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: c
                                  heading_opt[:, 1].reshape((-1, 1)),
                                  steer_opt[:, 1].reshape((-1, 1))), axis=1)
     state_record += [init_state]
+    lambda_record += [lambda_opt]
     init_state = np.reshape(init_state, [optimizer.num_veh*optimizer.n_states, 1]) # 10 X 1
     
 # visualization

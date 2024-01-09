@@ -12,8 +12,6 @@ state_record = []
 iter_num_record = []
 lambda_record = []
 # %% obca optimization
-if_comm_delay = 0
-min_dis = 1
 optimizer = decentralized.OBCAOptimizer()
 init_state = [arr[0, :] for arr in optimizer.ref_traj]
 init_state = np.vstack(init_state)
@@ -34,10 +32,8 @@ for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: c
         bar_x = []
         bar_ctrl = []
         for i_veh in range(optimizer.num_veh):
-            optimizer.local_initialize(t_step, init_state[i_veh*optimizer.n_states: 
-                                                          (i_veh+1)*optimizer.n_states], 
-                                       bar_state_prev, i_veh, max_x=150, max_y=20,
-                                       prob=if_comm_delay, min_dis=min_dis)
+            optimizer.local_initialize(t_step, init_state[i_veh*optimizer.n_states: (i_veh+1)*optimizer.n_states], 
+                                       bar_state_prev, i_veh, max_x=150, max_y=20)
             optimizer.local_build_model()
             optimizer.local_generate_constrain()
             optimizer.local_generate_variable()
@@ -50,7 +46,7 @@ for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: c
             bar_ctrl += [np.append(np.array(optimizer.a_opt).T, np.array(optimizer.steerate_opt).T)]
         
         # information exchange, bar_A & bar_b update
-        optimizer.bar_state_update(bar_x)
+        optimizer.bar_state_update(bar_z)
         
         # optimize from RSU side
         optimizer.edge_initialize(max_x=150, max_y=20)
@@ -62,8 +58,7 @@ for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: c
         # check residuals
         primal_res = np.sum(np.sqrt((bar_ctrl[0]-bar_ctrl_prev[0])*(bar_ctrl[0]-bar_ctrl_prev[0])) + \
                             np.sqrt((bar_ctrl[1]-bar_ctrl_prev[1])*(bar_ctrl[1]-bar_ctrl_prev[1])))
-        dual_res = np.sum(np.sqrt((optimizer.bar_state.lamb-bar_state_prev.lamb)*
-                                  (optimizer.bar_state.lamb-bar_state_prev.lamb)))
+        dual_res = np.sum(np.sqrt((optimizer.bar_state.lamb-bar_state_prev.lamb)*(optimizer.bar_state.lamb-bar_state_prev.lamb)))
         if (primal_res <= optimizer.primal_thres and dual_res <= optimizer.dual_thres) or i_iter > 5:
             if i_iter > 5:
                 print('goes here')
@@ -94,9 +89,9 @@ ax.set_xlim(0,90)
 
 # plot the vehicle polygons
 for i in range(len(state_record)):
-    v1_verts = decentralized.generate_vehicle_vertices(state_record[i][0, :])
+    v1_verts = decentralized.generate_vehicle_vertices(state_record[i][0, [0, 1, 3]])
     plot_polygon(v1_verts, fill=False, color='b')
-    v2_verts = decentralized.generate_vehicle_vertices(state_record[i][1, :])
+    v2_verts = decentralized.generate_vehicle_vertices(state_record[i][1, [0, 1, 3]])
     plot_polygon(v2_verts, fill=False, color='r')
 
 plt.show()

@@ -26,7 +26,7 @@ class OBCAOptimizer:
         self.T = cfg.T
         self.dt = cfg.dt
         self.ref_traj = cfg.ref_traj_gen()
-        self.N_horz = 15 # control horizon
+        self.N_horz = 20 # control horizon
 
     def initialize(self, t_step, init_state, max_x, max_y, prob, min_dis):
         self.constrains = []
@@ -52,14 +52,16 @@ class OBCAOptimizer:
 
     def build_model(self) -> bool:
         # state function is based on 'a distributed multi-robot coordination ...' eq.(7)-(8)
+        # state variable
         x = ca.SX.sym('x', self.num_veh)
         y = ca.SX.sym('y', self.num_veh)
         v = ca.SX.sym('v', self.num_veh)
         theta = ca.SX.sym('theta', self.num_veh)
         steering = ca.SX.sym('steering', self.num_veh)
+        # control variable
         a = ca.SX.sym('a', self.num_veh)
         steering_rate = ca.SX.sym('steering_rate', self.num_veh)
-        self.state = ca.vertcat(ca.vertcat(x, y, v, theta), steering) # 5*num_veh X 1
+        self.state = ca.vertcat(x, y, v, theta, steering) # 5*num_veh X 1
         self.control = ca.vertcat(a, steering_rate) # 2*num_veh X 1
         beta = ca.atan(self.lr*ca.tan(steering)/(self.lr+self.lf))
         # rhs is delta_state/delta_t
