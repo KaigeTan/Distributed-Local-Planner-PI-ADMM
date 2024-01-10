@@ -7,7 +7,7 @@ from .util import compute_square_halfspaces_ca, generate_vehicle_vertices, \
 import copy
 
 class OBCAOptimizer:
-    def __init__(self, cfg: VehicleConfig = VehicleConfig()) -> None:
+    def __init__(self, min_dis, prob, cfg: VehicleConfig = VehicleConfig()) -> None:
         self.L = cfg.length
         self.offset = cfg.length/2 - cfg.baselink_to_rear
         self.lf = cfg.lf
@@ -33,8 +33,11 @@ class OBCAOptimizer:
         self.primal_thres = 0.01
         self.dual_thres = 0.01
         
+        self.min_dis = min_dis
+        self.prob = prob
+        
     # %% below are the functions used at the local vehicle side
-    def local_initialize(self, t_step, init_state, bar_state_prev, i_veh, max_x, max_y, prob, min_dis):
+    def local_initialize(self, t_step, init_state, i_veh, max_x, max_y):
         self.constrains = []
         self.x0 = []
         self.lbg = []
@@ -53,9 +56,7 @@ class OBCAOptimizer:
         self.max_x = max_x
         self.max_y = max_y
         self.veh_idx = i_veh
-        self.bar_state = copy.deepcopy(bar_state_prev) # TODO: check isolation
-        self.prob = prob
-        self.min_dis = min_dis
+        
 
     def local_build_model(self) -> bool:
         # state variables
@@ -142,7 +143,7 @@ class OBCAOptimizer:
         # variables are local lambda, 4 X N_horz-1 (lambda_ij)
         for i in range(self.N_horz-1):
             self.variable += [self.LAMB_LOC[:, i]]
-            self.lbx += [0]*self.n_loc_lambda
+            self.lbx += [-1000]*self.n_loc_lambda
             self.ubx += [1000]*self.n_loc_lambda # TODO: ubx should not be specified? check the range and without assignment
     
     def local_generate_object(self, r, q, rho):
@@ -161,7 +162,7 @@ class OBCAOptimizer:
             self.obj += (error.T@Q@error) # deviation to reference trajectory
             temp_S = ca.vertcat(self.X[:, i], self.LAMB_LOC[:, i-1]) # 9 X 1
             temp_Z = self.bar_state.Z_bar[self.veh_idx, i-1, :] # 9 X 1
-            temp_lambda = self.bar_state.lamb_bar[i-1, :]
+            temp_lambda = self.bar_state.lamb_bar[self.veh_idx, i-1, :]
             self.obj += ca.SX(temp_lambda).T@temp_S # TODO: assign lambda_bar
             self.obj += rho/2*(temp_S - temp_Z).T@(temp_S - temp_Z) # TODO: assign z_bar
 
@@ -270,13 +271,14 @@ class OBCAOptimizer:
         # variables are Z
         for i in range(self.N_horz-1):
             self.variable += [ca.reshape(self.Z[i], self.num_veh*(self.n_states+self.n_loc_lambda), 1)] # 2*(5+4) x 1
-            # self.lbx += [0]*2*self.n_dual_variable # TODO: ***** check if dual vars has the lower and upper bound
-            # self.ubx += [5]*2*self.n_dual_variable
+            self.lbx += [-1000]*self.num_veh*(self.n_states+self.n_loc_lambda) # TODO: ***** check if dual vars has the lower and upper bound
+            self.ubx += [1000]*self.num_veh*(self.n_states+self.n_loc_lambda)
             
     def edge_generate_object(self, rho):
         for i in range(self.N_horz-1):
-            temp_lambda = self.bar_state.lamb_bar[i, :]
-            self.obj += -self.Z[i][0, :]@temp_lambda - self.Z[i][1, :]@temp_lambda
+            temp_lambda0 = self.bar_state.lamb_bar[0, i, :] # lambda for veh1
+            temp_lambda1 = self.bar_state.lamb_bar[1, i, :] # lambda for veh2
+            self.obj += -self.Z[i][0, :]@temp_lambda0 - self.Z[i][1, :]@temp_lambda1
             # TODO: double check correctness of bar_fullx
             local_fullx1 = np.concatenate((self.bar_state.local_x[0, i, :], self.bar_state.lamb_ij[0, i, :]))
             local_fullx2 = np.concatenate((self.bar_state.local_x[1, i, :], self.bar_state.lamb_ij[1, i, :]))
@@ -305,6 +307,22 @@ class OBCAOptimizer:
         # update the Z_bar for the iteration
         self.bar_state.Z_bar = np.transpose(Z_bar, (1, 0, 2))
     
+    def lambda_update(self, rho):
+        for i_veh in range(self.num_veh):
+            for i in range(self.N_horz-1):
+                local_z = np.concatenate((self.bar_state.local_x[i_veh, i, :], self.bar_state.lamb_ij[i_veh, i, :]))
+                edge_z = self.bar_state.Z_bar[i_veh, i, :]
+                self.bar_state.lamb_bar[i_veh, i, :] = self.bar_state.lamb_bar[i_veh, i, :] + rho*(local_z - edge_z)
+    
+    def iterate_next_state(self, bar_state):
+        bar_state.Z_bar = np.concatenate((bar_state.Z_bar[:, 1:, :], bar_state.Z_bar[:, -1:, :]), axis=1)
+        bar_state.A = np.concatenate((bar_state.A[:, 1:, :], bar_state.A[:, -1:, :]), axis=1)
+        bar_state.b = np.concatenate((bar_state.b[:, 1:, :], bar_state.b[:, -1:, :]), axis=1)
+        bar_state.lamb_bar = np.concatenate((bar_state.lamb_bar[:, 1:, :], bar_state.lamb_bar[:, -1:, :]), axis=1)
+        bar_state.lamb_ij = np.concatenate((bar_state.lamb_ij[:, 1:, :], bar_state.lamb_ij[:, -1:, :]), axis=1)
+        bar_state.local_x = np.concatenate((bar_state.local_x[:, 1:, :], bar_state.local_x[:, -1:, :]), axis=1)
+        return bar_state
+        
     # %% define the initialized bar_state
     def create_bar_state(self):
         bar_state = self.mid_state(self)
@@ -312,9 +330,9 @@ class OBCAOptimizer:
     
     class mid_state:
         def __init__(self, outer):
-            self.Z_bar = np.zeros((outer.num_veh, outer.N_horz-1, outer.n_states+outer.n_loc_lambda)) # 2x10-1x9
+            self.Z_bar = np.zeros((outer.num_veh, outer.N_horz-1, outer.n_states+outer.n_loc_lambda)) # 2x(10-1)x9
             self.A = np.zeros((outer.num_veh, outer.N_horz-1, outer.n_dual_variable, 2)) # 2x9x4X2
             self.b = np.zeros((outer.num_veh, outer.N_horz-1, outer.n_dual_variable)) # 2x9x4
-            self.lamb_bar = np.zeros((outer.N_horz-1, outer.n_states+outer.n_loc_lambda)) # 9x9
-            self.lamb_ij = np.zeros((outer.num_veh, outer.N_horz-1, outer.n_dual_variable)) # 2x9x4
+            self.lamb_bar = np.ones((outer.num_veh, outer.N_horz-1, outer.n_states+outer.n_loc_lambda)) # 9x9, upper level lambda
+            self.lamb_ij = np.ones((outer.num_veh, outer.N_horz-1, outer.n_dual_variable)) # 2x9x4, lower level lambda
             self.local_x = np.zeros((outer.num_veh, outer.N_horz-1, outer.n_states)) # 2x9x5

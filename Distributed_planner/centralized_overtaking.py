@@ -19,7 +19,7 @@ init_state = np.vstack(init_state)
 state_record = [init_state]
 init_state = np.reshape(init_state, [optimizer.num_veh*optimizer.n_states, 1]) # 10 X 1
 for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: check if -1
-    if t_step == 19:
+    if t_step == 9:
         print('')
     optimizer.initialize(t_step, init_state, max_x=150, max_y=20, 
                          prob=if_comm_delay, min_dis=min_dis)

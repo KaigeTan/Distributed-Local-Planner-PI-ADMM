@@ -21,22 +21,26 @@ lambda_record = []
 # %% obca optimization
 if_comm_delay = 0
 min_dis = 1
-optimizer = decentralized.OBCAOptimizer()
+optimizer = decentralized.OBCAOptimizer(min_dis=min_dis, prob = if_comm_delay)
 init_state = [arr[0, :] for arr in optimizer.ref_traj]
 init_state = np.vstack(init_state)
 state_record = [init_state]
 init_state = np.reshape(init_state, [optimizer.num_veh*optimizer.n_states, 1]) # 10 X 1
 
+bar_state_prev = optimizer.create_bar_state()
 for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: check if -1
-    if t_step == 5:
+    print('************************************************')
+    if t_step == 10:
         print('goes here!')
     # initialize at each time step, bar_state: lambda_bar, b_bar, s_bar; bar_ctrl: a_opt, steerate_opt
-    bar_state_prev = optimizer.create_bar_state()
+    
+    optimizer.bar_state = copy.deepcopy(bar_state_prev)
     bar_ctrl_prev = np.array([[0]*(optimizer.N_horz-1)*optimizer.n_controls]*optimizer.num_veh)
-    # bar_lambda = 
     i_iter = 0
     while True:
         i_iter += 1
+        rho = 1
+       
         # optimize from vehicle side
         bar_x = []
         bar_ctrl = []
@@ -45,14 +49,12 @@ for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: c
         for i_veh in range(optimizer.num_veh):
             optimizer.local_initialize(t_step, init_state[i_veh*optimizer.n_states: 
                                                           (i_veh+1)*optimizer.n_states], 
-                                       bar_state_prev, i_veh, max_x=150, max_y=20,
-                                       prob=if_comm_delay, min_dis=min_dis)
+                                       i_veh, max_x=150, max_y=20)
             optimizer.local_build_model()
             optimizer.local_generate_constrain()
             optimizer.local_generate_variable()
             r = 0.1*np.eye(optimizer.n_controls)
-            q = np.eye(optimizer.n_states)
-            rho = 1
+            q = 1*np.eye(optimizer.n_states)
             optimizer.local_generate_object(r, q, rho)
             optimizer.local_solve()
             
@@ -71,16 +73,22 @@ for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: c
         optimizer.edge_generate_variable()
         optimizer.edge_generate_object(rho)
         optimizer.edge_solve()
+        
+        # update lambda
+        optimizer.lambda_update(1)
+        
         # check residuals
         primal_res = np.sum(np.sqrt((bar_ctrl[0]-bar_ctrl_prev[0])*(bar_ctrl[0]-bar_ctrl_prev[0])) + \
                             np.sqrt((bar_ctrl[1]-bar_ctrl_prev[1])*(bar_ctrl[1]-bar_ctrl_prev[1])))
         dual_res = np.sum(np.sqrt((optimizer.bar_state.lamb_bar-bar_state_prev.lamb_bar)*
                                   (optimizer.bar_state.lamb_bar-bar_state_prev.lamb_bar)))
-        if (primal_res <= optimizer.primal_thres and dual_res <= optimizer.dual_thres) or i_iter > 5: # TODO: check terminate condition
-            if i_iter > 5:
+        if (primal_res <= optimizer.primal_thres and dual_res <= optimizer.dual_thres) or i_iter > 50: # TODO: check terminate condition
+            bar_state_prev = optimizer.iterate_next_state(bar_state_prev)
+            if i_iter > 50:
                 print('goes here')
             break # primal and dual residual within threshold, converge
-        else:    
+        else:
+            print('iter: %d, primal res: %.3f, dual res: %.3f' %(i_iter, primal_res, dual_res))
             # update bar_state in the current iteration
             bar_state_prev = copy.deepcopy(optimizer.bar_state)
             # update previous iteration result
@@ -91,7 +99,7 @@ for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: c
     state_record += [init_state]
     iter_num_record += [i_iter]
     init_state = np.reshape(init_state, [optimizer.num_veh*optimizer.n_states, 1]) # 10 X 1
-    lambda_record += [optimizer.bar_state.lamb]
+    lambda_record += [optimizer.bar_state.lamb_bar]
 # visualization
 fig, ax = plt.subplots()
 
