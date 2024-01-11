@@ -31,7 +31,7 @@ class VehicleConfig:
         v1 = 20 # m/s
         x1 = np.linspace(0, 0+v1*self.T, int(self.T/self.dt)+1) 
         v2 = 10 # m/s
-        x2 = np.linspace(20, 20+v2*self.T, int(self.T/self.dt)+1) 
+        x2 = np.linspace(10, 10+v2*self.T, int(self.T/self.dt)+1) 
         # ref trajectory, T/dt X 5: x, y, v, head, steer
         ref_traj1 = np.vstack((x1,
                                np.zeros_like(x1), 
@@ -43,5 +43,8 @@ class VehicleConfig:
                                v2*np.ones_like(x2),
                                np.zeros_like(x2), 
                                np.zeros_like(x2))).T
-        ref_traj = [ref_traj1, ref_traj2]    
+        ref_traj = [ref_traj2, ref_traj1]    
         return ref_traj  
+    
+    
+    

@@ -29,7 +29,7 @@ class OBCAOptimizer:
         self.T = cfg.T
         self.dt = cfg.dt
         self.ref_traj = cfg.ref_traj_gen()
-        self.N_horz = 10 # control horizon
+        self.N_horz = 5 # control horizon
         self.primal_thres = 0.01
         self.dual_thres = 0.01
         
@@ -52,12 +52,12 @@ class OBCAOptimizer:
             x0_temp = self.ref_traj[i_veh][t_step+i_t]
             self.x0 += [x0_temp] # state variable initialization, N_horz X n_state
         self.x0 += [[0]*(self.n_controls*(self.N_horz-1))] # control variable initialization
-        self.x0 += [[0]*(self.n_loc_lambda*(self.N_horz-1))] # local lambda values initialization
+        self.x0 += [[1]*(self.n_loc_lambda*(self.N_horz-1))] # local lambda values initialization
         self.max_x = max_x
         self.max_y = max_y
         self.veh_idx = i_veh
         
-
+        
     def local_build_model(self) -> bool:
         # state variables
         x = ca.SX.sym('x')
@@ -101,6 +101,7 @@ class OBCAOptimizer:
         
         # consider later how to implement multi-vehicle collsison avoidances
         # constraints for collision avoidance
+        
         for i_tstep in range(1, self.N_horz): # iterate each predicted time horizon
             # generate polytopic set if vehicles at i_tstep
             # if consider the communication delay, calcuate the halfspace expression by rotational &
@@ -114,7 +115,7 @@ class OBCAOptimizer:
             # for 2 vehicles: 1 pair
             self.constrains += [-b.T@self.LAMB_LOC[:, i_tstep-1] - 
                                 np.dot(self.bar_state.b[1-self.veh_idx, i_tstep-1, :],\
-                                       self.bar_state.lamb_ij[1-self.veh_idx, i_tstep-1, :])] # (5a)
+                                        self.bar_state.lamb_ij[1-self.veh_idx, i_tstep-1, :])] # (5a)
             self.lbg += [self.min_dis] # minimal distance req.
             self.ubg += [1000] # TODO: check the range and without assignment
             self.constrains += [A.T@self.LAMB_LOC[:, i_tstep-1] + self.bar_state.A[1-self.veh_idx, i_tstep-1].T@\
@@ -143,7 +144,7 @@ class OBCAOptimizer:
         # variables are local lambda, 4 X N_horz-1 (lambda_ij)
         for i in range(self.N_horz-1):
             self.variable += [self.LAMB_LOC[:, i]]
-            self.lbx += [-1000]*self.n_loc_lambda
+            self.lbx += [1e-1]*self.n_loc_lambda
             self.ubx += [1000]*self.n_loc_lambda # TODO: ubx should not be specified? check the range and without assignment
     
     def local_generate_object(self, r, q, rho):
@@ -157,7 +158,7 @@ class OBCAOptimizer:
             ref_st = self.x0[i]
             error = st - ref_st
             con = self.U[:, i-1]
-
+            
             self.obj += (con.T@R@con) # control input effort
             self.obj += (error.T@Q@error) # deviation to reference trajectory
             temp_S = ca.vertcat(self.X[:, i], self.LAMB_LOC[:, i-1]) # 9 X 1
@@ -169,14 +170,15 @@ class OBCAOptimizer:
     def local_solve(self):
         nlp_prob = {'f': self.obj, 'x': ca.vertcat(*self.variable),
                     'g': ca.vertcat(*self.constrains)}
-        opts = {'ipopt.max_iter':100, 
-                'ipopt.print_level':0, 
-                'print_time':0, 
-                'ipopt.acceptable_tol':1e-5, 
-                'ipopt.acceptable_obj_change_tol':1e-5}
-        solver = ca.nlpsol('solver', 'ipopt', nlp_prob, opts)
+        opts = {'qpsol': 'qpoases'}
+        # opts = {'ipopt.max_iter':1000, 
+        #         'ipopt.print_level':0, 
+        #         'print_time':0, 
+        #         'ipopt.acceptable_tol':1e-7, 
+        #         'ipopt.acceptable_obj_change_tol':1e-7}
+        solver = ca.nlpsol('solver', 'ipopt', nlp_prob)
         sol = solver(x0=ca.vertcat(*self.x0), lbx=self.lbx, ubx=self.ubx,
-                     ubg=self.ubg, lbg=self.lbg)
+                      ubg=self.ubg, lbg=self.lbg)
         u_opt = sol['x']
         # get optimized result
         state_num = self.n_states*self.N_horz
@@ -196,7 +198,7 @@ class OBCAOptimizer:
         # update the bar_state
         self.bar_x = ca.horzcat(self.x_opt, self.y_opt, self.v_opt, self.theta_opt, self.steer_opt) # N_horz X 5
         self.bar_u = ca.horzcat(self.a_opt, self.steerate_opt) # N_horz-1 X 2
-        self.bar_lambda_loc = ca.reshape(lambda_loc, 4, 9).T # resize to N_horz-1 X 4
+        self.bar_lambda_loc = ca.reshape(lambda_loc, self.n_loc_lambda, self.N_horz-1).T # resize to N_horz-1 X 4
         self.bar_fullx = ca.horzcat(self.bar_x[1:, :], self.bar_lambda_loc) # N_horz-1 X 9
         
     
@@ -219,6 +221,20 @@ class OBCAOptimizer:
                 self.bar_state.lamb_ij[i_veh, i_tstep, :] = np.array(bar_fullx_vehs[i_veh][i_tstep, 5:]).ravel()
                 # update local_x
                 self.bar_state.local_x[i_veh, i_tstep, :] = bar_x[i_tstep, :]
+    
+    # check if the coupled constraints are satisified
+    def check_converge(self, thres):
+        eq_con1 = np.zeros([self.N_horz-1, 2])
+        ueq_con1 = np.zeros(self.N_horz-1)
+        
+        for i_tstep in range(self.N_horz-1):
+            eq_con1[i_tstep, :] = self.bar_state.A[0, i_tstep, :, :].T@self.bar_state.lamb_ij[0, i_tstep, :] + \
+                self.bar_state.A[1, i_tstep, :, :].T@self.bar_state.lamb_ij[1, i_tstep, :]
+            ueq_con1[i_tstep] = -self.bar_state.b[0, i_tstep, :].T@self.bar_state.lamb_ij[0, i_tstep, :] - \
+                self.bar_state.b[1, i_tstep, :].T@self.bar_state.lamb_ij[1, i_tstep, :]
+        
+        return ((abs(eq_con1) <= thres).all() and (ueq_con1 >= self.min_dis).all())
+    
     
     # %% below are functions used at the edge coordinator side
     def edge_initialize(self, max_x, max_y):
@@ -333,6 +349,6 @@ class OBCAOptimizer:
             self.Z_bar = np.zeros((outer.num_veh, outer.N_horz-1, outer.n_states+outer.n_loc_lambda)) # 2x(10-1)x9
             self.A = np.zeros((outer.num_veh, outer.N_horz-1, outer.n_dual_variable, 2)) # 2x9x4X2
             self.b = np.zeros((outer.num_veh, outer.N_horz-1, outer.n_dual_variable)) # 2x9x4
-            self.lamb_bar = np.ones((outer.num_veh, outer.N_horz-1, outer.n_states+outer.n_loc_lambda)) # 9x9, upper level lambda
-            self.lamb_ij = np.ones((outer.num_veh, outer.N_horz-1, outer.n_dual_variable)) # 2x9x4, lower level lambda
+            self.lamb_bar = 1e-3*np.ones((outer.num_veh, outer.N_horz-1, outer.n_states+outer.n_loc_lambda)) # 9x9, upper level lambda
+            self.lamb_ij = 1e-3*np.ones((outer.num_veh, outer.N_horz-1, outer.n_dual_variable)) # 2x9x4, lower level lambda
             self.local_x = np.zeros((outer.num_veh, outer.N_horz-1, outer.n_states)) # 2x9x5

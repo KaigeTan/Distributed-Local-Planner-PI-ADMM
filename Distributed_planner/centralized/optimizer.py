@@ -26,7 +26,7 @@ class OBCAOptimizer:
         self.T = cfg.T
         self.dt = cfg.dt
         self.ref_traj = cfg.ref_traj_gen()
-        self.N_horz = 20 # control horizon
+        self.N_horz = 5 # control horizon
 
     def initialize(self, t_step, init_state, max_x, max_y, prob, min_dis=1):
         self.constrains = []

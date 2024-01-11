@@ -19,8 +19,8 @@ state_record = []
 iter_num_record = []
 lambda_record = []
 # %% obca optimization
-if_comm_delay = 0
-min_dis = 1
+if_comm_delay = 1
+min_dis = 0.1
 optimizer = decentralized.OBCAOptimizer(min_dis=min_dis, prob = if_comm_delay)
 init_state = [arr[0, :] for arr in optimizer.ref_traj]
 init_state = np.vstack(init_state)
@@ -53,11 +53,10 @@ for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: c
             optimizer.local_build_model()
             optimizer.local_generate_constrain()
             optimizer.local_generate_variable()
-            r = 0.1*np.eye(optimizer.n_controls)
-            q = 1*np.eye(optimizer.n_states)
+            r = 10000*np.eye(optimizer.n_controls)
+            q = 100000*np.eye(optimizer.n_states)
             optimizer.local_generate_object(r, q, rho)
             optimizer.local_solve()
-            
             bar_x += [np.array(optimizer.bar_x)] # TODO: put it in bar_state
             bar_ctrl += [np.append(np.array(optimizer.a_opt).T, np.array(optimizer.steerate_opt).T)]
             bar_lambda_loc += [np.array(optimizer.bar_lambda_loc)]
@@ -65,6 +64,8 @@ for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: c
         
         # information exchange, bar_A & bar_b update
         optimizer.bar_state_update(bar_fullx, bar_lambda_loc)
+        if_converge = optimizer.check_converge(0.1)
+        print('if converge to non collision: ', if_converge)
         
         # optimize from RSU side
         optimizer.edge_initialize(max_x=150, max_y=20)
