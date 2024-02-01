@@ -38,7 +38,7 @@ initial_state_v2 = planning_problem_v2.initial_state
 state_record = []
 # %% obca optimization
 if_comm_delay = 0
-min_dis = 1
+min_dis = 2
 optimizer = centralized.OBCAOptimizer()
 optimizer.get_static_obs_state(scenario.static_obstacles)
 init_state = [arr[0, :] for arr in optimizer.ref_traj]
