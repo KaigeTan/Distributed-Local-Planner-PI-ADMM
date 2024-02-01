@@ -21,7 +21,7 @@ init_state = np.reshape(init_state, [optimizer.num_veh*optimizer.n_states, 1]) #
 for t_step in range(int(optimizer.T/optimizer.dt - optimizer.N_horz)): # TODO: check if -1
     if t_step == 9:
         print('')
-    optimizer.initialize(t_step, init_state, max_x=150, max_y=20, 
+    optimizer.initialize(t_step, init_state, max_x=150, max_y=50, 
                          prob=if_comm_delay, min_dis=min_dis)
     optimizer.build_model() # TODO: check if this step needs to be in the loop
     optimizer.generate_constrain()
@@ -65,7 +65,7 @@ v2x = [vec[1, 0] for vec in state_record]
 v2y = [vec[1, 1] for vec in state_record]
 ax.plot(v1x, v1y, 'go', ms=10, label='vehicle1 path')
 ax.plot(v2x, v2y, 'ro', ms=10, label='vehicle2 path')
-ax.set_xlim(0,100)
+# ax.set_xlim(0,100)
 
 # plot the vehicle polygons
 for i in range(len(state_record)):

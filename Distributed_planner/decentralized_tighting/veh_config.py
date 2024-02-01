@@ -15,7 +15,7 @@ class VehicleConfig:
         self.max_front_wheel_angle = 0.6  # rad
         self.min_radius = self.wheel_base/m.tan(self.max_front_wheel_angle)
         self.dt = 0.1  # discreate time
-        self.T = 5  # period time
+        self.T = 7 # period time
         self.max_acc = 5
         self.max_v = 20
         self.max_steer_rate = 20
@@ -25,7 +25,6 @@ class VehicleConfig:
         self.avg_delay = 0.05 # consider the time delay is 50ms on average
         self.var_delay = 0.025 # consider the time variance is 25ms on average
         self.prob = 0.99
-        
         
     # vehicle reference trajectory configuration, default 2 vehicles overtaking
     def ref_traj_gen_overtake(self, num_veh = 2):
@@ -64,4 +63,6 @@ class VehicleConfig:
                                -m.pi/2*np.ones_like(y2), 
                                np.zeros_like(y2))).T
         ref_traj = [ref_traj1, ref_traj2]    
-        return ref_traj  
+        return ref_traj   
+    
+    

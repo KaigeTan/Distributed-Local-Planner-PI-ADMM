@@ -29,7 +29,7 @@ class OBCAOptimizer:
         self.T = cfg.T
         self.dt = cfg.dt
         self.ref_traj = cfg.ref_traj_gen()
-        self.N_horz = 5 # control horizon
+        self.N_horz = 8 # control horizon
         self.primal_thres = 0.01
         self.dual_thres = 0.01
         
@@ -144,8 +144,8 @@ class OBCAOptimizer:
         # variables are local lambda, 4 X N_horz-1 (lambda_ij)
         for i in range(self.N_horz-1):
             self.variable += [self.LAMB_LOC[:, i]]
-            self.lbx += [1e-1]*self.n_loc_lambda
-            self.ubx += [1000]*self.n_loc_lambda # TODO: ubx should not be specified? check the range and without assignment
+            self.lbx += [0]*self.n_loc_lambda
+            self.ubx += [100000]*self.n_loc_lambda # TODO: ubx should not be specified? check the range and without assignment
     
     def local_generate_object(self, r, q, rho):
         R = ca.SX(r)
@@ -170,13 +170,12 @@ class OBCAOptimizer:
     def local_solve(self):
         nlp_prob = {'f': self.obj, 'x': ca.vertcat(*self.variable),
                     'g': ca.vertcat(*self.constrains)}
-        opts = {'qpsol': 'qpoases'}
-        # opts = {'ipopt.max_iter':1000, 
-        #         'ipopt.print_level':0, 
-        #         'print_time':0, 
-        #         'ipopt.acceptable_tol':1e-7, 
-        #         'ipopt.acceptable_obj_change_tol':1e-7}
-        solver = ca.nlpsol('solver', 'ipopt', nlp_prob)
+        opts = {'ipopt.max_iter':1000, 
+                'ipopt.print_level':0, 
+                'print_time':0, 
+                'ipopt.acceptable_tol':1e-7, 
+                'ipopt.acceptable_obj_change_tol':1e-7}
+        solver = ca.nlpsol('solver', 'ipopt', nlp_prob, opts)
         sol = solver(x0=ca.vertcat(*self.x0), lbx=self.lbx, ubx=self.ubx,
                       ubg=self.ubg, lbg=self.lbg)
         u_opt = sol['x']
@@ -218,7 +217,7 @@ class OBCAOptimizer:
                 self.bar_state.A[i_veh, i_tstep, :, :] = np.array(A_temp) # TODO: check the horizon, 4 X 2
                 self.bar_state.b[i_veh, i_tstep, :] = np.array(b_temp).ravel() # TODO: check the horizon, 4 X 1
                 # update lamb_ij
-                self.bar_state.lamb_ij[i_veh, i_tstep, :] = np.array(bar_fullx_vehs[i_veh][i_tstep, 5:]).ravel()
+                # self.bar_state.lamb_ij[i_veh, i_tstep, :] = np.array(bar_fullx_vehs[i_veh][i_tstep, 5:]).ravel()
                 # update local_x
                 self.bar_state.local_x[i_veh, i_tstep, :] = bar_x[i_tstep, :]
     
@@ -286,10 +285,15 @@ class OBCAOptimizer:
     def edge_generate_variable(self):
         # variables are Z
         for i in range(self.N_horz-1):
-            self.variable += [ca.reshape(self.Z[i], self.num_veh*(self.n_states+self.n_loc_lambda), 1)] # 2*(5+4) x 1
-            self.lbx += [-1000]*self.num_veh*(self.n_states+self.n_loc_lambda) # TODO: ***** check if dual vars has the lower and upper bound
-            self.ubx += [1000]*self.num_veh*(self.n_states+self.n_loc_lambda)
-            
+            self.variable += [ca.reshape(self.Z[i], self.num_veh*self.n_states, 1)] # 2*5 x 1
+            self.lbx += [-1000]*self.num_veh*self.n_states # TODO: ***** check if dual vars has the lower and upper bound
+            self.ubx += [1000]*self.num_veh*self.n_states
+        
+        for i in range(self.N_horz-1):
+            self.variable += [ca.reshape(self.Z[i], self.num_veh*self.n_loc_lambda, 1)] # 2*4 x 1
+            self.lbx += [0]*self.num_veh*self.n_loc_lambda # TODO: ***** check if dual vars has the lower and upper bound
+            self.ubx += [100000]*self.num_veh*self.n_loc_lambda
+        
     def edge_generate_object(self, rho):
         for i in range(self.N_horz-1):
             temp_lambda0 = self.bar_state.lamb_bar[0, i, :] # lambda for veh1
@@ -350,5 +354,20 @@ class OBCAOptimizer:
             self.A = np.zeros((outer.num_veh, outer.N_horz-1, outer.n_dual_variable, 2)) # 2x9x4X2
             self.b = np.zeros((outer.num_veh, outer.N_horz-1, outer.n_dual_variable)) # 2x9x4
             self.lamb_bar = 1e-3*np.ones((outer.num_veh, outer.N_horz-1, outer.n_states+outer.n_loc_lambda)) # 9x9, upper level lambda
-            self.lamb_ij = 1e-3*np.ones((outer.num_veh, outer.N_horz-1, outer.n_dual_variable)) # 2x9x4, lower level lambda
+            self.lamb_ij = np.array([[[1.49 , 0.566, 0.566, 1.49 ],
+                                    [1.438, 0.514, 0.514, 1.438],
+                                    [1.387, 0.462, 0.462, 1.387],
+                                    [1.336, 0.411, 0.411, 1.336],
+                                    [1.287, 0.361, 0.361, 1.287],
+                                    [1.238, 0.312, 0.312, 1.238],
+                                    [1.191, 0.263, 0.263, 1.191]],
+                                  
+                                   [[1.436, 1.436, 1.436, 1.436],
+                                    [1.325, 1.325, 1.325, 1.325],
+                                    [1.213, 1.213, 1.213, 1.213],
+                                    [1.1  , 1.1  , 1.1  , 1.1  ],
+                                    [0.986, 0.986, 0.986, 0.986],
+                                    [0.871, 0.871, 0.871, 0.871],
+                                    [0.755, 0.755, 0.755, 0.755]]])
+            # self.lamb_ij = 1e-3*np.ones((outer.num_veh, outer.N_horz-1, outer.n_dual_variable)) # 2x9x4, lower level lambda
             self.local_x = np.zeros((outer.num_veh, outer.N_horz-1, outer.n_states)) # 2x9x5

@@ -25,8 +25,8 @@ class OBCAOptimizer:
                                    0.5*cfg.width, 0.5*cfg.width]))
         self.T = cfg.T
         self.dt = cfg.dt
-        self.ref_traj = cfg.ref_traj_gen()
-        self.N_horz = 5 # control horizon
+        self.ref_traj = cfg.ref_traj_gen_overtake()
+        self.N_horz = 15 # control horizon
 
     def initialize(self, t_step, init_state, max_x, max_y, prob, min_dis=1):
         self.constrains = []
@@ -44,7 +44,7 @@ class OBCAOptimizer:
                 x0_temp = np.hstack([x0_temp, self.ref_traj[i_veh][t_step+i_t]])
             self.x0 += [x0_temp] # state variable initialization, N_horz X num_veh*n_state
         self.x0 += [[0]*(self.num_veh*self.n_controls*(self.N_horz-1))] # control variable initialization
-        self.x0 += [[0.1]*(self.num_veh*self.n_dual_variable*(self.N_horz-1))] # TODO: check dual variable number, dual variable initialization
+        self.x0 += [[10]*(self.num_veh*self.n_dual_variable*(self.N_horz-1))] # TODO: check dual variable number, dual variable initialization
         self.max_x = max_x
         self.max_y = max_y
         self.prob = prob
