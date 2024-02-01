@@ -8,6 +8,7 @@ from .util import compute_square_halfspaces_ca, generate_vehicle_vertices, \
 class OBCAOptimizer:
     def __init__(self, cfg: VehicleConfig = VehicleConfig()) -> None:
         self.L = cfg.length
+        self.W = cfg.width
         self.offset = cfg.length/2 - cfg.baselink_to_rear
         self.lf = cfg.lf
         self.lr = cfg.lr
@@ -26,7 +27,7 @@ class OBCAOptimizer:
         self.T = cfg.T
         self.dt = cfg.dt
         self.ref_traj = cfg.ref_traj_gen()
-        self.N_horz = 15 # control horizon
+        self.N_horz = 20 # control horizon
 
     def initialize(self, t_step, init_state, max_x, max_y, prob, min_dis=1):
         self.constrains = []
@@ -167,7 +168,7 @@ class OBCAOptimizer:
             A = []
             b = []
             lamb = []
-            # generate polytopic set if vehicles at i_tstep
+            # dynamic obstacles: generate polytopic set if vehicles at i_tstep
             for i_veh in range(self.num_veh):
                 # if consider the communication delay, calcuate the halfspace expression by rotational &
                 # translational matrix instead of the edge points
@@ -190,3 +191,51 @@ class OBCAOptimizer:
             self.constrains += [ca.mtimes((A[0].T@lamb[0]).T, A[0].T@lamb[0])] # dual norm of \lambda.T@A <= 1
             self.lbg += [0]
             self.ubg += [1]
+            # static obstacles
+            # here we simplify to consider the x and y distance to the vehicle center pos
+            for sta_obs in self.sta_obs_s:
+                for i_veh in range(self.num_veh):
+                    self.constrains += [(self.X[i_tstep][i_veh, :][0] - sta_obs[0])@\
+                                        (self.X[i_tstep][i_veh, :][0] - sta_obs[0])+\
+                                        (self.X[i_tstep][i_veh, :][1] - sta_obs[1])@\
+                                        (self.X[i_tstep][i_veh, :][1] - sta_obs[1])]
+                    self.lbg += [np.power(self.min_dis + sta_obs[-2]/2 + self.L/2, 2)+\
+                                 np.power(self.min_dis + sta_obs[-1]/2 + self.W/2, 2)]  
+                    self.ubg += [10000000]
+                    
+            # dynamic obstacles
+            # here we simplify to consider the x and y distance to the vehicle center pos
+            # for dyn_obs in self.dyn_obs_s:
+            #     for i_veh in range(self.num_veh):
+            #         # x distance
+            #         self.constrains += [ca.fabs(self.X[i_tstep][i_veh, :][0] - dyn_obs[0])]
+            #         self.lbg += [self.min_dis + dyn_obs[-2]/2 + self.L/2]
+            #         self.ubg += [1000]
+            #         # y distance
+            #         self.constrains += [ca.fabs(self.X[i_tstep][i_veh, :][1] - dyn_obs[1])]
+            #         self.lbg += [self.min_dis + dyn_obs[-1]/2 + self.W/2]
+            #         self.ubg += [1000]
+            
+    # update the state of dynamic obstacles at different time step, [x, y, v, theta, length, width]            
+    def update_obs_state(self, t_step, dyn_obstacles):
+        self.dyn_obs_s = []
+        self.dyn_obs_size = []
+        for o in dyn_obstacles:
+            prediction = o.prediction.trajectory.state_list[t_step]
+            pos_x = prediction.position[0]
+            pos_y = prediction.position[1]
+            vel = prediction.velocity
+            ori = prediction.orientation
+            self.dyn_obs_s.append([pos_x, pos_y, vel, ori, o.obstacle_shape.length, o.obstacle_shape.width])
+            
+    # get the state of static obstacles in the beginning, [x, y, v, theta, length, width]
+    def get_static_obs_state(self, static_obstacles):
+        self.sta_obs_s = []
+        self.sta_obs_size = []
+        for o in static_obstacles:
+            pos_x = o.initial_state.position[0]
+            pos_y = o.initial_state.position[1]
+            vel = o.initial_state.velocity
+            ori = o.initial_state.orientation
+            self.sta_obs_s.append([pos_x, pos_y, vel, ori, o.obstacle_shape.length, o.obstacle_shape.width])
+            

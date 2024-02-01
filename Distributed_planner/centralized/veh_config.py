@@ -15,7 +15,7 @@ class VehicleConfig:
         self.max_front_wheel_angle = 0.6  # rad
         self.min_radius = self.wheel_base/m.tan(self.max_front_wheel_angle)
         self.dt = 0.1  # discreate time
-        self.T = 5  # period time
+        self.T = 6  # period time
         self.max_acc = 5
         self.max_v = 20
         self.max_steer_rate = 20
@@ -29,17 +29,17 @@ class VehicleConfig:
     # vehicle reference trajectory configuration, default 2 vehicles overtaking
     def ref_traj_gen(self, num_veh = 2):
         v1 = 20 # m/s
-        x1 = np.linspace(0, 0+v1*self.T, int(self.T/self.dt)+1) 
+        x1 = np.linspace(15, 15+v1*self.T, int(self.T/self.dt)+1) 
         v2 = 10 # m/s
-        x2 = np.linspace(20, 20+v2*self.T, int(self.T/self.dt)+1) 
+        x2 = np.linspace(35, 35+v2*self.T, int(self.T/self.dt)+1) 
         # ref trajectory, T/dt X 5: x, y, v, head, steer
         ref_traj1 = np.vstack((x1,
-                               np.zeros_like(x1), 
+                               3.5*np.ones_like(x1), 
                                v1*np.ones_like(x1),
                                np.zeros_like(x1), 
                                np.zeros_like(x1))).T
         ref_traj2 = np.vstack((x2,
-                               np.zeros_like(x2), 
+                               3.5*np.ones_like(x1), 
                                v2*np.ones_like(x2),
                                np.zeros_like(x2), 
                                np.zeros_like(x2))).T
